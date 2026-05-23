@@ -1,0 +1,117 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Assumed Data Model
+    // ===============================================================
+    //
+    // Collection: tenants
+    // Fields:
+    //   - name: string (required)
+    //   - oib: string (required, 11 digits)
+    //   - type: string (required, 'firm' | 'accountant')
+    //   - createdAt: timestamp (required)
+    //
+    // Collection: users
+    // Fields:
+    //   - email: string (required)
+    //   - role: string (required, 'admin' | 'accountant' | 'firm_user')
+    //   - tenantId: string (required)
+    //   - name: string (optional)
+    //
+    // Collection: documents
+    // Fields:
+    //   - fileName: string (required)
+    //   - fileUrl: string (optional)
+    //   - status: string (required, 'pending' | 'processed' | 'approved' | 'rejected')
+    //   - tenantId: string (required)
+    //   - uploadedBy: string (required)
+    //   - createdAt: timestamp (required)
+    //   - recognizedData: map (optional)
+    //   - paymentStatus: string (optional)
+    //
+    // ===============================================================
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isTenantMember(tenantId) {
+      return isAuthenticated() && getUserData().tenantId == tenantId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && (
+        getUserData().role == 'admin' ||
+        (request.auth.token.email == "zagreb.dado.piksi@gmail.com" && request.auth.token.email_verified == true)
+      );
+    }
+
+    function isAccountant() {
+      return isAuthenticated() && getUserData().role == 'accountant';
+    }
+
+    function isValidTenant(data) {
+      return data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             data.oib is string && data.oib.matches("^\\d{11}$") &&
+             data.type in ['firm', 'accountant'];
+    }
+
+    function isValidUser(data) {
+      return data.email is string && data.email.size() > 0 &&
+             data.role in ['admin', 'accountant', 'firm_user'] &&
+             data.tenantId is string;
+    }
+
+    function isValidDocument(data) {
+      return data.fileName is string && data.fileName.size() > 0 &&
+             data.status in ['pending', 'processed', 'approved', 'rejected'] &&
+             data.tenantId is string &&
+             data.uploadedBy == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /tenants/{tenantId} {
+      allow read: if isAuthenticated() && (isTenantMember(tenantId) || isAccountant());
+      allow create: if isAuthenticated() && isValidTenant(request.resource.data);
+      allow update: if isAuthenticated() && isTenantMember(tenantId) && isValidTenant(request.resource.data) && isAdmin();
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated() && (isOwner(userId) || isTenantMember(resource.data.tenantId));
+      allow create: if isAuthenticated() && isValidUser(request.resource.data) && (isOwner(userId) || isAdmin());
+      allow update: if isAuthenticated() && isOwner(userId) && isValidUser(request.resource.data) && request.resource.data.role == resource.data.role;
+    }
+
+    match /documents/{docId} {
+      allow read: if isAuthenticated() && (isTenantMember(resource.data.tenantId) || isAccountant());
+      allow create: if isAuthenticated() && isValidDocument(request.resource.data);
+      allow update: if isAuthenticated() && (
+        (isTenantMember(resource.data.tenantId) && isValidDocument(request.resource.data)) ||
+        isAccountant()
+      );
+      allow delete: if isAuthenticated() && isTenantMember(resource.data.tenantId) && isAdmin();
+    }
+
+    // Default deny
+    match /{path=**} {
+      allow read, write: if false;
+    }
+  }
+}

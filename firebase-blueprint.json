@@ -1,0 +1,81 @@
+{
+  "entities": {
+    "Tenant": {
+      "title": "Tenant",
+      "description": "A multi-tenant container for firms and accountants.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the firm or accounting office." },
+        "oib": { "type": "string", "description": "Croatian OIB (Personal Identification Number)." },
+        "type": { "type": "string", "enum": ["firm", "accountant"], "description": "Type of tenant." },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "oib", "type"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "User information and role within a tenant.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["admin", "accountant", "firm_user"], "description": "User role." },
+        "tenantId": { "type": "string", "description": "ID of the tenant the user belongs to." },
+        "name": { "type": "string" }
+      },
+      "required": ["email", "role", "tenantId"]
+    },
+    "Document": {
+      "title": "Document",
+      "description": "An invoice or document uploaded for recognition.",
+      "type": "object",
+      "properties": {
+        "fileName": { "type": "string" },
+        "fileUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "processed", "approved", "rejected"], "description": "Processing status." },
+        "type": { "type": "string", "enum": ["incoming_invoice", "outgoing_invoice"], "description": "Document type." },
+        "tenantId": { "type": "string" },
+        "uploadedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "recognizedData": {
+          "type": "object",
+          "properties": {
+            "invoiceNumber": { "type": "string" },
+            "date": { "type": "string" },
+            "dueDate": { "type": "string" },
+            "totalAmount": { "type": "number" },
+            "currency": { "type": "string", "description": "Usually EUR." },
+            "taxRates": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "rate": { "type": "number" },
+                  "amount": { "type": "number" }
+                }
+              }
+            },
+            "items": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "description": { "type": "string" },
+                  "quantity": { "type": "number" },
+                  "unitPrice": { "type": "number" },
+                  "taxRate": { "type": "number" }
+                }
+              }
+            }
+          }
+        },
+        "paymentStatus": { "type": "string", "enum": ["unpaid", "partially_paid", "paid"] }
+      },
+      "required": ["fileName", "status", "tenantId", "uploadedBy"]
+    }
+  },
+  "firestore": {
+    "/tenants/{tenantId}": { "schema": "Tenant", "description": "Tenant details." },
+    "/users/{userId}": { "schema": "UserProfile", "description": "User profiles." },
+    "/documents/{docId}": { "schema": "Document", "description": "Uploaded documents." }
+  }
+}
