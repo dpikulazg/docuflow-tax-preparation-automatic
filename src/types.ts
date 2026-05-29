@@ -74,3 +74,15 @@ export interface Document {
   paymentStatus?: 'unpaid' | 'partially_paid' | 'paid';
   auditLog?: AuditEntry[];
 }
+
+export interface OcrFeedback {
+  id?: string;
+  documentId: string;
+  incorrectFields: string[];
+  corrections: { [key: string]: string };
+  comment?: string;
+  submittedBy: string;
+  submittedByName: string;
+  createdAt: any;
+}
+

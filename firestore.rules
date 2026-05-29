@@ -107,6 +107,20 @@ service cloud.firestore {
         isAccountant()
       );
       allow delete: if isAuthenticated() && isTenantMember(resource.data.tenantId) && isAdmin();
+
+      match /ocrFeedback/{feedbackId} {
+        allow read: if isAuthenticated() && (
+          isTenantMember(get(/databases/$(database)/documents/documents/$(docId)).data.tenantId) ||
+          isAccountant()
+        );
+        allow create: if isAuthenticated() && 
+          request.resource.data.documentId == docId &&
+          request.resource.data.submittedBy == request.auth.uid &&
+          (
+            isTenantMember(get(/databases/$(database)/documents/documents/$(docId)).data.tenantId) ||
+            isAccountant()
+          );
+      }
     }
 
     // Default deny

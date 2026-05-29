@@ -214,6 +214,7 @@ export default function App() {
 
           const docData: Partial<Document> = {
             fileName: file.name,
+            fileUrl: reader.result as string,
             status: 'processed',
             type: 'incoming_invoice',
             tenantId: profile.tenantId,
@@ -286,11 +287,11 @@ export default function App() {
           <div className="grid grid-cols-2 gap-4 text-left">
             <div className="p-4 border border-black/10 rounded-lg bg-white/50">
               <h3 className="font-bold text-xs uppercase mb-1">Za Tvrtke</h3>
-              <p className="text-xs text-gray-600">Automatsko slanje računa i real-time praćenje plaćanja.</p>
+              <p className="text-xs text-gray-600">Automatsko slanje računa i real-time podaci o ulazu robe i provjera plaćanja.</p>
             </div>
             <div className="p-4 border border-black/10 rounded-lg bg-white/50">
-              <h3 className="font-bold text-xs uppercase mb-1">Za Računovođe</h3>
-              <p className="text-xs text-gray-600">Standardizirani export podataka i AI prepoznavanje dokumenata.</p>
+              <h3 className="font-bold text-xs uppercase mb-1">Za Računovodstveni ured</h3>
+              <p className="text-xs text-gray-600">Standardizirani željeni export podataka kroz API endpoint URL te prepoznavanje dokumenata.</p>
             </div>
           </div>
         </motion.div>
@@ -374,7 +375,8 @@ export default function App() {
           <Button 
             variant="outline" 
             onClick={handleLogout}
-            className={`w-full justify-start gap-2 rounded-none transition-colors ${isAccountant ? 'border-black hover:bg-black hover:text-white' : 'border-white/20 hover:bg-white hover:text-black'}`}
+            style={{ backgroundColor: '#380052' }}
+            className="w-full justify-start gap-2 rounded-none transition-colors text-white border-none hover:opacity-90"
           >
             <LogOut size={16} />
             <span className="text-xs font-bold uppercase tracking-wider">Odjava</span>
@@ -567,18 +569,18 @@ export default function App() {
               >
                 <div className="flex justify-between items-end">
                   <div className="space-y-1">
-                    <h2 className="text-3xl font-bold uppercase tracking-tighter">Document Archive</h2>
+                    <h2 className="text-3xl font-bold uppercase tracking-tighter">Arhiva Dokumenata</h2>
                     <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">
-                      {profile?.role === 'admin' ? 'All System Documents' : 
-                       profile?.role === 'accountant' ? 'Portfolio Documents' : 
-                       `Documents for ${tenant?.name}`}
+                      {profile?.role === 'admin' ? 'Svi Dokumneti' : 
+                       profile?.role === 'accountant' ? 'Portfolio Dokumenti' : 
+                       `Dokumenti za ${tenant?.name}`}
                     </p>
                   </div>
                   <Tabs defaultValue="all" className="w-[400px]">
                     <TabsList className="grid w-full grid-cols-3 rounded-none border-2 border-black bg-white p-1">
-                      <TabsTrigger value="all" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">All</TabsTrigger>
-                      <TabsTrigger value="unpaid" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">Unpaid</TabsTrigger>
-                      <TabsTrigger value="paid" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">Paid</TabsTrigger>
+                      <TabsTrigger value="all" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">Svi</TabsTrigger>
+                      <TabsTrigger value="unpaid" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">Neplaćeni</TabsTrigger>
+                      <TabsTrigger value="paid" className="rounded-none data-[state=active]:bg-black data-[state=active]:text-white uppercase text-[10px] font-bold">Plaćeni</TabsTrigger>
                     </TabsList>
                   </Tabs>
                 </div>
@@ -589,14 +591,14 @@ export default function App() {
                       <TableRow className="bg-[#F5F5F5] hover:bg-[#F5F5F5]">
                         <TableHead className="font-mono text-[10px] uppercase italic">ID</TableHead>
                         {(profile?.role === 'admin' || profile?.role === 'accountant') && (
-                          <TableHead className="font-mono text-[10px] uppercase italic">Tenant</TableHead>
+                          <TableHead className="font-mono text-[10px] uppercase italic">Korisnik</TableHead>
                         )}
-                        <TableHead className="font-mono text-[10px] uppercase italic">Invoice #</TableHead>
-                        <TableHead className="font-mono text-[10px] uppercase italic">Date</TableHead>
-                        <TableHead className="font-mono text-[10px] uppercase italic">Amount</TableHead>
-                        <TableHead className="font-mono text-[10px] uppercase italic">Tax</TableHead>
+                        <TableHead className="font-mono text-[10px] uppercase italic">Rsačun #</TableHead>
+                        <TableHead className="font-mono text-[10px] uppercase italic">Datum</TableHead>
+                        <TableHead className="font-mono text-[10px] uppercase italic">Iznost</TableHead>
+                        <TableHead className="font-mono text-[10px] uppercase italic">PDV</TableHead>
                         <TableHead className="font-mono text-[10px] uppercase italic">Status</TableHead>
-                        <TableHead className="font-mono text-[10px] uppercase italic text-right">Action</TableHead>
+                        <TableHead className="font-mono text-[10px] uppercase italic text-right">Akcija</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -626,7 +628,7 @@ export default function App() {
                             </Badge>
                           </TableCell>
                           <TableCell className="text-right">
-                            <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase font-bold border-black rounded-none">View</Button>
+                            <Button variant="outline" size="sm" className="h-7 text-[10px] uppercase font-bold border-black rounded-none">Pregle</Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -701,7 +703,7 @@ export default function App() {
               >
                 <div className="space-y-1">
                   <h2 className="text-3xl font-bold uppercase tracking-tighter">Postavke Sustava</h2>
-                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Konfiguracija profila i integracija</p>
+                  <p className="text-xs text-gray-500 font-mono uppercase tracking-widest">Konfiguracija profila i postavke za integraciju</p>
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
@@ -752,12 +754,12 @@ export default function App() {
                   {profile?.role === 'accountant' && (
                     <Card className="col-span-full border-2 border-black rounded-none shadow-[4px_4px_0px_0px_rgba(0,0,0,1)] bg-white">
                       <CardHeader className="border-b border-black">
-                        <CardTitle className="text-lg font-bold uppercase italic font-serif">Knjigovodstvene Postavke</CardTitle>
+                        <CardTitle className="text-lg font-bold uppercase italic font-serif">Postavke Knjigovodstvenog ureda</CardTitle>
                       </CardHeader>
                       <CardContent className="p-6 space-y-6">
                         <div className="grid grid-cols-2 gap-8">
                           <div className="space-y-4">
-                            <Label className="text-[10px] uppercase font-bold text-gray-500">ERP Export Format</Label>
+                            <Label className="text-[10px] uppercase font-bold text-gray-500">ERP Sustav za integraciju</Label>
                             <Select defaultValue={tenant?.erpFormat || 'Pantheon'}>
                               <SelectTrigger className="rounded-none border-black">
                                 <SelectValue placeholder="Odaberi ERP" />
@@ -769,10 +771,10 @@ export default function App() {
                                 <SelectItem value="Wand">4D Wand (.xml)</SelectItem>
                               </SelectContent>
                             </Select>
-                            <p className="text-[10px] text-gray-400 italic">Ovaj format će se koristiti za generiranje batch datoteka za vaš ERP sustav.</p>
+                            <p className="text-[10px] text-gray-400 italic">Ovaj format će se koristiti za generiranje batch datoteka za odabrani ERP sustav.</p>
                           </div>
                           <div className="space-y-4">
-                            <Label className="text-[10px] uppercase font-bold text-gray-500">Email Ingestion</Label>
+                            <Label className="text-[10px] uppercase font-bold text-gray-500">Email Ingestion Obrada</Label>
                             <div className="flex items-center gap-4">
                               <div className={`p-2 border border-black font-mono text-xs ${tenant?.emailIngestionEnabled ? 'bg-green-50' : 'bg-gray-50 text-gray-400'}`}>
                                 {tenant?.ingestionEmail || 'nije-definirano@docuflow.hr'}
@@ -781,7 +783,7 @@ export default function App() {
                                 {tenant?.emailIngestionEnabled ? 'AKTIVNO' : 'NEAKTIVNO'}
                               </Badge>
                             </div>
-                            <p className="text-[10px] text-gray-400 italic">Klijenti mogu slati dokumente direktno na ovu adresu.</p>
+                            <p className="text-[10px] text-gray-400 italic">Klijenti mogu slati dokumente direktno na ovu email adresu.</p>
                           </div>
                         </div>
                       </CardContent>
@@ -796,7 +798,7 @@ export default function App() {
                       </CardHeader>
                       <CardContent className="p-6">
                         <Button className="bg-black text-white rounded-none uppercase text-xs font-bold">
-                          Upravljanje Svim Tenantima
+                          Upravljanje Svim Korisnicima
                         </Button>
                       </CardContent>
                     </Card>

@@ -71,11 +71,34 @@
         "paymentStatus": { "type": "string", "enum": ["unpaid", "partially_paid", "paid"] }
       },
       "required": ["fileName", "status", "tenantId", "uploadedBy"]
+    },
+    "OcrFeedback": {
+      "title": "OCR Feedback",
+      "description": "User feedback regarding incorrect fields in AI-recognized invoices.",
+      "type": "object",
+      "properties": {
+        "documentId": { "type": "string" },
+        "incorrectFields": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "List of field names tagged as incorrect."
+        },
+        "corrections": {
+          "type": "object",
+          "description": "Map of field name to corrected value or explanation."
+        },
+        "comment": { "type": "string", "description": "Optional general comment." },
+        "submittedBy": { "type": "string" },
+        "submittedByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["documentId", "incorrectFields", "submittedBy"]
     }
   },
   "firestore": {
     "/tenants/{tenantId}": { "schema": "Tenant", "description": "Tenant details." },
     "/users/{userId}": { "schema": "UserProfile", "description": "User profiles." },
-    "/documents/{docId}": { "schema": "Document", "description": "Uploaded documents." }
+    "/documents/{docId}": { "schema": "Document", "description": "Uploaded documents." },
+    "/documents/{docId}/ocrFeedback/{feedbackId}": { "schema": "OcrFeedback", "description": "OCR corrections and feedback submitted by users." }
   }
 }
