@@ -1,13 +1,27 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "docuflow-tax-preparation-automatic",
+  "main": "src/worker.ts",
   "compatibility_date": "2026-06-22",
   "observability": {
     "enabled": true
   },
   "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "docuflow",
+      "database_id": "1dd2a8df-5290-4c24-ada9-37eec167a624",
+      "migrations_dir": "migrations"
+    }
+  ],
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "docuflow-files" }
+  ],
   "compatibility_flags": [
     "nodejs_compat"
   ]

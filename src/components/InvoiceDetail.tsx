@@ -33,8 +33,7 @@ import {
 } from './ui/select';
 import { Document, InvoiceItem, AuditEntry, UserProfile } from '../types';
 import { format } from 'date-fns';
-import { doc, updateDoc, arrayUnion, serverTimestamp, collection, addDoc } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { api } from '../lib/api';
 import { toast } from 'sonner';
 
 interface InvoiceDetailProps {
@@ -107,29 +106,13 @@ export function InvoiceDetail({ document, profile, onClose }: InvoiceDetailProps
       details,
       timestamp: new Date()
     };
-    
-    const docRef = doc(db, 'documents', document.id);
-    await updateDoc(docRef, {
-      auditLog: arrayUnion(entry)
-    });
+    await api.updateDocument(document.id, { audit: entry });
   };
 
   const handleSaveHeader = async () => {
     setIsSaving(true);
     try {
-      const docRef = doc(db, 'documents', document.id);
-      await updateDoc(docRef, {
-        'recognizedData.invoiceNumber': data.invoiceNumber,
-        'recognizedData.supplierName': data.supplierName,
-        'recognizedData.supplierOib': data.supplierOib,
-        'recognizedData.supplierIban': data.supplierIban,
-        'recognizedData.buyerName': data.buyerName,
-        'recognizedData.buyerOib': data.buyerOib,
-        'recognizedData.totalAmount': data.totalAmount,
-        'recognizedData.paymentModel': data.paymentModel,
-        'recognizedData.paymentReference': data.paymentReference,
-        'paymentStatus': paymentStatus,
-      });
+      await api.updateDocument(document.id, { recognizedData: data, paymentStatus });
       await logAudit('UPDATE_HEADER', `Izmijenjeni podaci zaglavlja i status plaćanja za račun ${data.invoiceNumber}`);
       toast.success('Zaglavlje spremljeno');
     } catch (e) {
@@ -140,10 +123,8 @@ export function InvoiceDetail({ document, profile, onClose }: InvoiceDetailProps
 
   const handleUpdateItems = async (newItems: InvoiceItem[]) => {
     setItems(newItems);
-    const docRef = doc(db, 'documents', document.id);
-    await updateDoc(docRef, {
-      'recognizedData.items': newItems
-    });
+    setData(previous => ({ ...previous, items: newItems }));
+    await api.updateDocument(document.id, { recognizedData: { ...data, items: newItems } });
   };
 
   const addItem = () => {
@@ -187,8 +168,7 @@ export function InvoiceDetail({ document, profile, onClose }: InvoiceDetailProps
 
     setIsSaving(true);
     try {
-      const docRef = doc(db, 'documents', document.id);
-      await updateDoc(docRef, { status: newStatus });
+      await api.updateDocument(document.id, { status: newStatus });
       setStatus(newStatus);
       await logAudit('STATUS_CHANGE', `Status promijenjen u ${newStatus}`);
       toast.success(`Račun ${newStatus}`);
@@ -217,19 +197,14 @@ export function InvoiceDetail({ document, profile, onClose }: InvoiceDetailProps
     }
 
     setIsSubmittingFeedback(true);
-    const feedbackPath = `documents/${document.id}/ocrFeedback`;
     try {
       const feedbackData = {
-        documentId: document.id,
         incorrectFields: selectedFields,
-        corrections: corrections,
+        corrections,
         comment: feedbackComment,
-        submittedBy: profile.id,
-        submittedByName: profile.name || profile.email,
-        createdAt: serverTimestamp(),
       };
 
-      await addDoc(collection(db, 'documents', document.id, 'ocrFeedback'), feedbackData);
+      await api.submitFeedback(document.id, feedbackData);
       
       const fieldsListCro = selectedFields.map(f => {
         const found = TAGGABLE_FIELDS.find(tf => tf.id === f);
@@ -247,11 +222,6 @@ export function InvoiceDetail({ document, profile, onClose }: InvoiceDetailProps
     } catch (error) {
       console.error('Greška pri slanju povratnih informacija:', error);
       toast.error('Nije uspjelo slanje povratnih informacija.');
-      try {
-        handleFirestoreError(error, OperationType.CREATE, feedbackPath);
-      } catch (err) {
-        // Suppress or handle re-thrown error
-      }
     } finally {
       setIsSubmittingFeedback(false);
     }

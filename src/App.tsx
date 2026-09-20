@@ -1,24 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  onAuthStateChanged, 
-  signInWithPopup, 
-  GoogleAuthProvider, 
-  signOut,
-  User
-} from 'firebase/auth';
-import { 
-  doc, 
-  getDoc, 
-  setDoc, 
-  collection, 
-  query, 
-  where, 
-  onSnapshot,
-  orderBy,
-  serverTimestamp
-} from 'firebase/firestore';
-import { auth, db } from './lib/firebase';
 import { UserProfile, Tenant, Document } from './types';
+import { api, AppUser } from './lib/api';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Label } from './components/ui/label';
@@ -56,7 +38,7 @@ import { recognizeInvoice } from './lib/gemini';
 import { InvoiceDetail } from './components/InvoiceDetail';
 
 export default function App() {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<AppUser | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [tenant, setTenant] = useState<Tenant | null>(null);
   const [clients, setClients] = useState<Tenant[]>([]);
@@ -67,168 +49,71 @@ export default function App() {
   const [selectedDoc, setSelectedDoc] = useState<Document | null>(null);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
-      setUser(firebaseUser);
-      if (firebaseUser) {
-        await fetchProfile(firebaseUser.uid);
-      } else {
-        setProfile(null);
-        setTenant(null);
-        setDocuments([]);
-      }
+    let active = true;
+    api.getSession().then((session) => {
+      if (!active) return;
+      setUser(session.user);
+      setProfile(session.profile);
+      setTenant(session.tenant);
+      setLoading(false);
+    }).catch((error) => {
+      console.error('Cloudflare Access session failed', error);
       setLoading(false);
     });
-    return unsubscribe;
+    return () => { active = false; };
   }, []);
 
   useEffect(() => {
-    if (!profile?.tenantId) return;
-
-    let q;
-    if (profile.role === 'admin') {
-      q = query(
-        collection(db, 'documents'),
-        orderBy('createdAt', 'desc')
-      );
-    } else if (profile.role === 'accountant') {
-      // Accountants only see documents from tenants they manage
-      // Or if they are assigned to the tenant specifically
-      const managedIds = profile.managedTenants || [];
-      const clientIds = [profile.tenantId, ...managedIds, ...clients.map(c => c.id)];
-      
-      if (clientIds.length > 0) {
-        q = query(
-          collection(db, 'documents'),
-          where('tenantId', 'in', clientIds.slice(0, 30)),
-          orderBy('createdAt', 'desc')
-        );
-      } else {
-        setDocuments([]);
-        return;
+    if (!user) return;
+    let active = true;
+    const load = async () => {
+      try {
+        const [nextDocuments, nextClients] = await Promise.all([
+          api.getDocuments(),
+          profile?.role === 'accountant' || profile?.role === 'admin' ? api.getClients() : Promise.resolve([] as Tenant[]),
+        ]);
+        if (active) {
+          setDocuments(nextDocuments);
+          setClients(nextClients);
+        }
+      } catch (error) {
+        console.error('Cloudflare data loading failed', error);
+        toast.error('Podaci se nisu mogli učitati');
       }
-    } else {
-      q = query(
-        collection(db, 'documents'),
-        where('tenantId', '==', profile.tenantId),
-        orderBy('createdAt', 'desc')
-      );
-    }
+    };
+    load();
+    const interval = window.setInterval(load, 10000);
+    return () => { active = false; window.clearInterval(interval); };
+  }, [user, profile]);
 
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const docs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Document));
-      setDocuments(docs);
-    }, (error) => {
-      console.error("Document subscription error:", error);
-    });
-
-    return unsubscribe;
-  }, [profile, clients]);
-
-  useEffect(() => {
-    if (profile?.role === 'accountant' && profile.tenantId) {
-      const q = query(
-        collection(db, 'tenants'),
-        where('accountantTenantId', '==', profile.tenantId)
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => {
-        const clientList = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Tenant));
-        setClients(clientList);
-      });
-      return unsubscribe;
-    }
-  }, [profile]);
-
-  const fetchProfile = async (uid: string) => {
-    const docRef = doc(db, 'users', uid);
-    const docSnap = await getDoc(docRef);
-    
-    if (docSnap.exists()) {
-      const profileData = docSnap.data() as UserProfile;
-      setProfile({ ...profileData, id: uid });
-      await fetchTenant(profileData.tenantId);
-    } else {
-      // New user setup - default to firm for demo
-      const newTenantId = `tenant_${uid}`;
-      const newTenant: Partial<Tenant> = {
-        name: 'My Firm d.o.o.',
-        oib: '12345678901',
-        type: 'firm',
-        createdAt: serverTimestamp()
-      };
-      
-      const newProfile: Partial<UserProfile> = {
-        email: auth.currentUser?.email || '',
-        role: 'firm_user',
-        tenantId: newTenantId,
-        name: auth.currentUser?.displayName || ''
-      };
-
-      await setDoc(doc(db, 'tenants', newTenantId), newTenant);
-      await setDoc(doc(db, 'users', uid), newProfile);
-      
-      setProfile({ ...newProfile, id: uid } as UserProfile);
-      setTenant({ ...newTenant, id: newTenantId } as Tenant);
-    }
+  const handleLogin = () => {
+    window.location.href = '/cdn-cgi/access/login';
   };
 
-  const fetchTenant = async (tenantId: string) => {
-    const docRef = doc(db, 'tenants', tenantId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      setTenant({ id: docSnap.id, ...docSnap.data() } as Tenant);
-    }
+  const handleLogout = async () => {
+    await api.logout();
+    window.location.href = '/cdn-cgi/access/logout';
   };
-
-  const handleLogin = async () => {
-    const provider = new GoogleAuthProvider();
-    try {
-      await signInWithPopup(auth, provider);
-    } catch (error) {
-      console.error('Login failed', error);
-      toast.error('Login failed');
-    }
-  };
-
-  const handleLogout = () => signOut(auth);
 
   const onDrop = async (acceptedFiles: File[]) => {
     if (!profile || !tenant) return;
-    
     setIsUploading(true);
     toast.info('Processing document with AI...');
 
     for (const file of acceptedFiles) {
       try {
-        const reader = new FileReader();
-        reader.onload = async () => {
-          const base64 = (reader.result as string).split(',')[1];
-          const recognized = await recognizeInvoice(base64, file.type);
-          
-          // Ensure items have IDs for editing
-          if (recognized.items) {
-            recognized.items = recognized.items.map((item: any) => ({
-              ...item,
-              id: item.id || Math.random().toString(36).substr(2, 9)
-            }));
-          }
-
-          const docData: Partial<Document> = {
-            fileName: file.name,
-            fileUrl: reader.result as string,
-            status: 'processed',
-            type: 'incoming_invoice',
-            tenantId: profile.tenantId,
-            uploadedBy: profile.id,
-            createdAt: serverTimestamp(),
-            recognizedData: recognized,
-            paymentStatus: 'unpaid'
-          };
-
-          const newDocRef = doc(collection(db, 'documents'));
-          await setDoc(newDocRef, docData);
-          toast.success(`Processed ${file.name}`);
-        };
-        reader.readAsDataURL(file);
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = () => resolve((reader.result as string).split(',')[1]);
+          reader.onerror = () => reject(reader.error);
+          reader.readAsDataURL(file);
+        });
+        const recognized = await recognizeInvoice(base64, file.type);
+        if (recognized.items) {
+          recognized.items = recognized.items.map((item: any) => ({ ...item, id: item.id || crypto.randomUUID() }));
+        }
+        await api.createDocument(file, recognized, profile.tenantId);
+        toast.success(`Processed ${file.name}`);
       } catch (error) {
         console.error('OCR failed', error);
         toast.error(`Failed to process ${file.name}`);
