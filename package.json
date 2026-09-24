@@ -9,6 +9,7 @@
     "preview": "npm run build && wrangler dev",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
+    "test": "node --import tsx --test tests/*.test.mjs",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {

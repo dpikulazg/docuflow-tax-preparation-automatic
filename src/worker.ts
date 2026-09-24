@@ -15,7 +15,7 @@ interface Identity {
 const json = (value: unknown, init: ResponseInit = {}) =>
   new Response(JSON.stringify(value), {
     ...init,
-    headers: { 'Content-Type': 'application/json', ...init.headers },
+    headers: { 'Content-Type': 'application/json', 'Cache-Control': 'no-store', ...init.headers },
   });
 
 const now = () => new Date().toISOString();
@@ -89,6 +89,17 @@ async function documentsFor(env: Env, profile: any) {
 async function handleApi(request: Request, env: Env): Promise<Response> {
   const url = new URL(request.url);
   const route = url.pathname.replace(/^\/api\/?/, '').split('/');
+  if (url.pathname === '/api/login' && request.method === 'GET') {
+    // Access protects /api/* and performs sign-in before this route is reached.
+    // Return to the SPA even when Access is missing, so it can display an error.
+    return new Response(null, {
+      status: 302,
+      headers: {
+        Location: identity(request) ? '/' : '/?authError=access_required',
+        'Cache-Control': 'no-store',
+      },
+    });
+  }
   const user = await requireIdentity(request);
   const { profile, tenant } = await profileFor(env, user);
 
@@ -136,7 +147,6 @@ async function handleApi(request: Request, env: Env): Promise<Response> {
     await env.DB.prepare('INSERT INTO ocr_feedback (id, document_id, incorrect_fields, corrections, comment, submitted_by, submitted_by_name, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)').bind(id(), route[1], JSON.stringify(body.incorrectFields || []), JSON.stringify(body.corrections || {}), body.comment || null, user.id, user.name, now()).run();
     return json({ ok: true }, { status: 201 });
   }
-  if (route[0] === 'logout' && request.method === 'POST') return json({ ok: true });
   return json({ error: 'Not found' }, { status: 404 });
 }
 

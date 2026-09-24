@@ -35,4 +35,8 @@
 
 Cloudflare Access must be enabled before the API can return a session. R2 cannot be created by Wrangler until R2 is enabled for the account.
 
+Login uses Google through Cloudflare Access. Configure a self-hosted Access application covering `/api/*` on the deployed hostname, including `/api/login`, with Google enabled and an Allow policy for your users. Keep `/` and static assets public if you want visitors to see the DocuFlow login screen. Protect every hostname that exposes the API, including any enabled `workers.dev` or preview hostname; the Worker relies on Access-provided identity headers.
+
+The login button navigates to `/api/login`; Access authenticates the user and the Worker returns them to `/`. The app then loads the D1 profile through `/api/session`. Logout clears the displayed user data and navigates directly to Cloudflare's `/cdn-cgi/access/logout`, so a D1 outage cannot prevent logout. This ends the Access session, not the user's Google session. See [Cloudflare session management](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
+
 For local development, use `wrangler dev` after configuring local Access headers or deploy to a Cloudflare hostname.
