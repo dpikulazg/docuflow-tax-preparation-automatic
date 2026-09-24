@@ -25,7 +25,7 @@
 2. Copy [.env.example](.env.example) to `.env.local` and configure the Gemini and Cloudflare values.
 3. Enable R2 in the Cloudflare Dashboard, then create the bucket named in `wrangler.jsonc`:
    `npx wrangler r2 bucket create docuflow-files`
-4. Configure Cloudflare Access with Google sign-in for the deployed hostname.
+4. Configure Cloudflare Access with One-time PIN (email OTP) for the deployed hostname, as described below.
 5. Apply the database migration:
    `npx wrangler d1 migrations apply docuflow --remote`
 6. Deploy:
@@ -35,8 +35,17 @@
 
 Cloudflare Access must be enabled before the API can return a session. R2 cannot be created by Wrangler until R2 is enabled for the account.
 
-Login uses Google through Cloudflare Access. Configure a self-hosted Access application covering `/api/*` on the deployed hostname, including `/api/login`, with Google enabled and an Allow policy for your users. Keep `/` and static assets public if you want visitors to see the DocuFlow login screen. Protect every hostname that exposes the API, including any enabled `workers.dev` or preview hostname; the Worker relies on Access-provided identity headers.
+Login uses email access codes (OTP) through Cloudflare Access. Configure a self-hosted Access application covering `/api/*` on the deployed hostname, including `/api/login`, with One-time PIN selected as its login method and an Allow policy for your users. Keep `/` and static assets public if you want visitors to see the DocuFlow login screen. Protect every hostname that exposes the API, including any enabled `workers.dev` or preview hostname; the Worker relies on Access-provided identity headers.
 
-The login button navigates to `/api/login`; Access authenticates the user and the Worker returns them to `/`. The app then loads the D1 profile through `/api/session`. Logout clears the displayed user data and navigates directly to Cloudflare's `/cdn-cgi/access/logout`, so a D1 outage cannot prevent logout. This ends the Access session, not the user's Google session. See [Cloudflare session management](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
+The login button navigates to `/api/login`; Access authenticates the user and the Worker returns them to `/`. The app then loads the D1 profile through `/api/session`. Logout clears the displayed user data and navigates directly to Cloudflare's `/cdn-cgi/access/logout`, so a D1 outage cannot prevent logout. This ends the Access session. See [Cloudflare session management](https://developers.cloudflare.com/cloudflare-one/access-controls/access-settings/session-management/).
 
 For local development, use `wrangler dev` after configuring local Access headers or deploy to a Cloudflare hostname.
+
+To enable email OTP in Cloudflare:
+
+1. In **Zero Trust → Integrations → Identity providers**, add **One-time PIN**.
+2. Edit the DocuFlow Access application covering `/api/*`. Under its login methods, select **One-time PIN** only and disable **Accept all available identity providers** if enabled.
+3. Add an **Allow** policy with **Include → Emails** for approved users, or **Emails ending in** for your approved company domain.
+4. Save the application, deploy DocuFlow, then test in a private browser window: select **Nastavi na prijavu e-mailom**, enter an approved email on the Access page, request the code, and enter it to return to DocuFlow.
+
+Cloudflare sends and verifies the code on its hosted page. No SMTP credentials or OTP storage in D1/R2 are needed. Enabling OTP is an account setting; deploying this repository does not enable it automatically. See [Cloudflare One-time PIN setup](https://developers.cloudflare.com/cloudflare-one/integrations/identity-providers/one-time-pin/).
